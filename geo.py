@@ -303,8 +303,12 @@ class HighPerformanceGeoChecker:
             print(f"{Fore.RED}[!] GeoServer'ы не найдены")
 
 
+found_count = 0
+found_lock = threading.Lock()
+
 def process_target(line, port, checker):
     """Обрабатывает одну цель из stdin"""
+    global found_count
     try:
         ip = line.strip()
         if not ip:
@@ -312,7 +316,12 @@ def process_target(line, port, checker):
         
         result = checker.check_geoserver_fast(ip, port)
         if result:
-            print(f"[FOUND]: {ip}:{port}")
+            with found_lock:
+                found_count += 1
+                # Сохраняем в файл
+                with open("found_geoservers.txt", "a") as f:
+                    f.write(f"{ip}:{port}\n")
+                print(f"[FOUND {found_count}]: {ip}:{port}")
     except Exception:
         pass
 
