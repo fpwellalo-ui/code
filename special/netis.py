@@ -5,7 +5,7 @@
 import threading, sys, time, random, socket, re, os
 
 if len(sys.argv) < 2:
-        print "Usage: python "+sys.argv[0]+" <list>"
+        print("Usage: python "+sys.argv[0]+" <list>")
         sys.exit()
 
 loginpayload = "AAAAAAAAnetcore\x00"
