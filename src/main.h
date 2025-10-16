@@ -7,5 +7,5 @@ enum
     STDIN = 0,
     STDOUT = 1,
     STDERR = 2,
-    MAX_EVENTS = 1000000
+    MAX_EVENTS = 100000
 };
