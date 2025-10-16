@@ -770,53 +770,47 @@ void main(void)
 
 
 
+    static char line_buf[8192];
+    static int line_pos = 0;
+
     while(TRUE)
     {
-        char buf[4096];
-        static char line_buf[8192] = {0};
-        static int line_pos = 0;
-        int bytes_read;
+        char c;
+        ssize_t n;
 
-        // Читаем данные напрямую через read() без буферизации
-        bytes_read = read(STDIN_FILENO, buf, sizeof(buf) - 1);
+        // Читаем по одному байту для мгновенной обработки
+        n = read(STDIN_FILENO, &c, 1);
 
-        if(bytes_read <= 0)
+        if(n <= 0)
         {
-            if(bytes_read == 0)
+            if(n == 0 || errno == EAGAIN || errno == EWOULDBLOCK)
             {
-                usleep(1000);
+                usleep(100);
+                continue;
             }
-            continue;
+            break;
         }
 
-        buf[bytes_read] = '\0';
-
-        // Обрабатываем буфер построчно
-        for(int i = 0; i < bytes_read; i++)
+        // Обрабатываем символ
+        if(c == '\n' || c == '\r')
         {
-            if(buf[i] == '\n' || buf[i] == '\r')
+            if(line_pos > 0)
             {
-                if(line_pos > 0)
+                line_buf[line_pos] = '\0';
+
+                if(parse_target(&h, line_buf))
                 {
-                    line_buf[line_pos] = '\0';
-
-                    if(parse_target(&h, line_buf))
-                    {
-                        total++;
-                        load_target(&h);
-                    }
-
-                    line_pos = 0;
-                    memset(line_buf, 0, sizeof(line_buf));
+                    total++;
+                    load_target(&h);
                 }
-            }
-            else if(line_pos < sizeof(line_buf) - 1)
-            {
-                line_buf[line_pos++] = buf[i];
+
+                line_pos = 0;
             }
         }
-
-        fflush(stdout);
+        else if(line_pos < sizeof(line_buf) - 1)
+        {
+            line_buf[line_pos++] = c;
+        }
     }
 
 
