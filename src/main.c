@@ -771,61 +771,53 @@ void main(void)
 
 
     while(TRUE)
-
     {
-
         char buf[4096];
+        static char line_buf[8192] = {0};
+        static int line_pos = 0;
+        int bytes_read;
 
+        // Читаем данные напрямую через read() без буферизации
+        bytes_read = read(STDIN_FILENO, buf, sizeof(buf) - 1);
 
-
-        if(fgets(buf, sizeof(buf), stdin) == NULL)
-
+        if(bytes_read <= 0)
         {
-
-            if(feof(stdin))
-
+            if(bytes_read == 0)
             {
-
-                clearerr(stdin);
-
+                usleep(1000);
             }
-
-            usleep(1000);
-
             continue;
-
         }
 
+        buf[bytes_read] = '\0';
 
-
-        if(strlen(buf) == 0)
-
-            continue;
-
-
-
-        if(!parse_target(&h, buf))
-
+        // Обрабатываем буфер построчно
+        for(int i = 0; i < bytes_read; i++)
         {
+            if(buf[i] == '\n' || buf[i] == '\r')
+            {
+                if(line_pos > 0)
+                {
+                    line_buf[line_pos] = '\0';
 
-            continue;
+                    if(parse_target(&h, line_buf))
+                    {
+                        total++;
+                        load_target(&h);
+                    }
 
+                    line_pos = 0;
+                    memset(line_buf, 0, sizeof(line_buf));
+                }
+            }
+            else if(line_pos < sizeof(line_buf) - 1)
+            {
+                line_buf[line_pos++] = buf[i];
+            }
         }
-
-
-
-        total++;
-
-
-
-        load_target(&h);
-
-
 
         fflush(stdout);
-
     }
-
 
 
     free(_worker);
