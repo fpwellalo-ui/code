@@ -708,7 +708,9 @@ void main(void)
 
     signal(SIGCHLD, SIG_IGN);
 
+    // Отключаем буферизацию stdin для работы с zmap в реальном времени
 
+    setbuf(stdin, NULL);
 
     srand(t);
 
@@ -819,6 +821,3 @@ void main(void)
     return;
 
 }
-
-
-
