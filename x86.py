@@ -150,7 +150,7 @@ def process_url(url):
         return url, False, exc
 
 @click.command()
-@click.option("-w", "--workers", default=100, help="Number of worker threads")
+@click.option("-w", "--workers", default=0, help="Number of worker threads (0 = unlimited, one thread per URL)")
 def main(workers):
     stdin_stream = click.get_text_stream("stdin")
     if stdin_stream.isatty():
@@ -164,29 +164,47 @@ def main(workers):
     reporter_thread = Thread(target=stats_reporter, args=(stop_reporting,), daemon=True)
     reporter_thread.start()
 
-    futures = set()
+    threads = []
 
-    def handle_future(future):
-        futures.discard(future)
-        url, success, error = future.result()
-        record_stats(url, success, error)
+    if workers > 0:
+        futures = set()
 
-    def drain_completed():
-        completed = [future for future in list(futures) if future.done()]
-        for future in completed:
-            handle_future(future)
+        def handle_future(future):
+            futures.discard(future)
+            url, success, error = future.result()
+            record_stats(url, success, error)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        def drain_completed():
+            completed = [future for future in list(futures) if future.done()]
+            for future in completed:
+                handle_future(future)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            for line in stdin_stream:
+                url = line.strip()
+                if not url:
+                    continue
+                future = executor.submit(process_url, url)
+                futures.add(future)
+                drain_completed()
+
+            for future in concurrent.futures.as_completed(list(futures)):
+                handle_future(future)
+    else:
+        def thread_worker(target_url):
+            url, success, error = process_url(target_url)
+            record_stats(url, success, error)
+
         for line in stdin_stream:
             url = line.strip()
             if not url:
                 continue
-            future = executor.submit(process_url, url)
-            futures.add(future)
-            drain_completed()
+            t = Thread(target=thread_worker, args=(url,))
+            threads.append(t)
+            t.start()
 
-        for future in concurrent.futures.as_completed(list(futures)):
-            handle_future(future)
+        for t in threads:
+            t.join()
 
     stop_reporting.set()
     reporter_thread.join()
