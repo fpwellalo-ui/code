@@ -195,43 +195,10 @@ func main() {
 
     scanner := bufio.NewScanner(os.Stdin)
     scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-    hosts := make([]string, 0, 1024)
-    for scanner.Scan() {
-        line := strings.TrimSpace(scanner.Text())
-        if line == "" {
-            continue
-        }
-        // Normalize input: if it is a URL, extract host[:port]
-        if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") {
-            if u, err := url.Parse(line); err == nil {
-                if u.Host != "" {
-                    hosts = append(hosts, u.Host)
-                    continue
-                }
-            }
-        }
-        hosts = append(hosts, line)
-    }
-
-    if len(hosts) == 0 {
-        os.Exit(0)
-    }
 
     ports := parsePorts(portsFlag)
     timeout := time.Duration(timeoutSec) * time.Second
     client := makeClient(timeout, insecureTLS)
-
-    // Build task list first
-    taskList := make([]task, 0, len(hosts)*len(ports))
-    for _, h := range hosts {
-        if host, port, err := net.SplitHostPort(h); err == nil && port != "" {
-            taskList = append(taskList, task{host: host, port: port})
-            continue
-        }
-        for _, p := range ports {
-            taskList = append(taskList, task{host: h, port: p})
-        }
-    }
 
     var wg sync.WaitGroup
     foundMu := &sync.Mutex{}
@@ -297,17 +264,34 @@ func main() {
         }
     }
 
-    if concurrency == 0 { // unlimited: one goroutine per task
-        wg.Add(len(taskList))
-        for _, t := range taskList {
-            tt := t
-            go func() { defer wg.Done(); runTask(tt) }()
+    if concurrency == 0 { // stream: unlimited goroutines per task
+        for scanner.Scan() {
+            line := strings.TrimSpace(scanner.Text())
+            if line == "" {
+                continue
+            }
+            // Normalize input: accept URL or host[:port]
+            input := line
+            if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") {
+                if u, err := url.Parse(line); err == nil && u.Host != "" {
+                    input = u.Host
+                }
+            }
+            if host, port, err := net.SplitHostPort(input); err == nil && port != "" {
+                wg.Add(1)
+                go func(h, p string) { defer wg.Done(); runTask(task{host: h, port: p}) }(host, port)
+            } else {
+                for _, p := range ports {
+                    wg.Add(1)
+                    go func(h, p string) { defer wg.Done(); runTask(task{host: h, port: p}) }(input, p)
+                }
+            }
         }
         wg.Wait()
         return
     }
 
-    // Bounded worker pool
+    // Bounded worker pool with streaming input
     if concurrency < 1 {
         concurrency = 1
     }
@@ -315,19 +299,41 @@ func main() {
         concurrency = 5000
     }
 
-    tasksCh := make(chan task, 1024)
-    wg.Add(concurrency)
+    tasksCh := make(chan task, 4096)
+    var workersWG sync.WaitGroup
+    var tasksWG sync.WaitGroup
+    workersWG.Add(concurrency)
     for i := 0; i < concurrency; i++ {
         go func() {
-            defer wg.Done()
+            defer workersWG.Done()
             for t := range tasksCh {
                 runTask(t)
+                tasksWG.Done()
             }
         }()
     }
-    for _, t := range taskList {
-        tasksCh <- t
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
+        if line == "" {
+            continue
+        }
+        input := line
+        if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") {
+            if u, err := url.Parse(line); err == nil && u.Host != "" {
+                input = u.Host
+            }
+        }
+        if host, port, err := net.SplitHostPort(input); err == nil && port != "" {
+            tasksWG.Add(1)
+            tasksCh <- task{host: host, port: port}
+        } else {
+            for _, p := range ports {
+                tasksWG.Add(1)
+                tasksCh <- task{host: input, port: p}
+            }
+        }
     }
     close(tasksCh)
-    wg.Wait()
+    tasksWG.Wait()
+    workersWG.Wait()
 }
