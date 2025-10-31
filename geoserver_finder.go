@@ -84,7 +84,7 @@ func isGeoServerBody(b []byte) bool {
         return true
     }
     // admin UI
-    if strings.Contains(s, "<title>geoserver") || strings.Contains(s, "class=\"brand\"">geoserver") {
+    if strings.Contains(s, "<title>geoserver") || strings.Contains(s, `class="brand">geoserver`) {
         return true
     }
     return false
